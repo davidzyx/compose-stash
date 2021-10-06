@@ -1,0 +1,103 @@
+services:
+  vector:  # logging source
+    image: timberio/vector:latest-debian
+    volumes:
+      - ./vector:/etc/vector
+      - /var/run/docker.sock:/var/run/docker.sock
+    # ports:
+    #   - "8383:8383"
+
+  gluetunA:
+    image: qmcgaw/gluetun
+    cap_add:
+      - NET_ADMIN
+    network_mode: bridge
+    # ports:
+      # - 9999:8888/tcp # Tinyproxy
+      # - 8388:8388/tcp # Shadowsocks
+      # - 8388:8388/udp # Shadowsocks
+      # - 8000:8000/tcp # Built-in HTTP control server
+      # - 23333:23333/tcp
+    environment:
+      - OPENVPN_VERBOSITY=1
+      - VPNSP=private internet access
+      - TZ=America/Los_Angeles
+      - OPENVPN_USER=XXX
+      - OPENVPN_PASSWORD=XXX
+      - REGION=US West
+      # https://github.com/qdm12/gluetun/wiki/Private-Internet-Access-Servers
+    restart: unless-stopped
+    depends_on:
+      vector:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+        reservations:
+          memory: 20M
+
+  gluetunB:
+    image: qmcgaw/gluetun
+    cap_add:
+      - NET_ADMIN
+    network_mode: bridge
+    environment:
+      - OPENVPN_VERBOSITY=1
+      - VPNSP=private internet access
+      - TZ=America/Los_Angeles
+      - OPENVPN_USER=XXX
+      - OPENVPN_PASSWORD=XXX
+      - REGION=US Silicon Valley
+    restart: unless-stopped
+    depends_on:
+      vector:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+        reservations:
+          memory: 20M
+
+  scraperA:
+    image: ghcr.io/jef/streetmerchant:nightly
+    restart: "always"
+    env_file:
+      - config/streetmerchant.dotenv
+      - config/streetmerchantA.dotenv
+    network_mode: "service:gluetunA"
+    depends_on:
+      vector:
+        condition: service_started
+      gluetunA:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 3gb
+          cpus: '2'
+        reservations:
+          memory: 1gb
+    cpuset: '38,39'
+
+  scraperB:
+    image: ghcr.io/jef/streetmerchant:nightly
+    restart: "always"
+    env_file:
+      - config/streetmerchant.dotenv
+      - config/streetmerchantB.dotenv
+    network_mode: "service:gluetunB"
+    depends_on:
+      vector:
+        condition: service_started
+      gluetunB:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 3gb
+          cpus: '2'
+        reservations:
+          memory: 1gb
+    cpuset: '38,39'

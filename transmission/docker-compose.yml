@@ -1,0 +1,50 @@
+services:
+  gluetun:
+    image: qmcgaw/gluetun
+    cap_add:
+      - NET_ADMIN
+    network_mode: bridge
+    ports:
+      - 9091:9091
+      - 51413:51413
+      - 51413:51413/udp
+    environment:
+      - OPENVPN_VERBOSITY=1
+      - VPNSP=private internet access
+      - TZ=America/Los_Angeles
+      # - OPENVPN_USER=XXX
+      # - OPENVPN_PASSWORD=XXX
+      - REGION=US West
+      # https://github.com/qdm12/gluetun/wiki/Private-Internet-Access-Servers
+    env_file:
+      - secrets.env
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 100M
+        reservations:
+          memory: 20M
+
+  transmission:
+    image: ghcr.io/linuxserver/transmission
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+      - TRANSMISSION_WEB_HOME=/flood-for-transmission/
+      - USER=XXX
+      - PASS=XXX
+    volumes:
+      - ./config:/config
+      - ./downloads:/downloads
+      - ./watch:/watch
+    # ports: # mapped to gluetun
+    #   - 9091:9091
+    #   - 51413:51413
+    #   - 51413:51413/udp
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
